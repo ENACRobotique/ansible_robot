@@ -1,0 +1,19 @@
+[Desktop Entry]
+Comment[fr_FR]=
+Comment=
+Exec=/home/robot/bin/Logic.AppImage --no-sandbox
+GenericName[fr_FR]=
+GenericName=
+Icon=/home/robot/bin/icons/logic.png
+MimeType=
+Name[fr_FR]=Logic
+Name=Logic
+Path=
+StartupNotify=true
+Terminal=false
+TerminalOptions=
+Type=Application
+X-DBUS-ServiceName=
+X-DBUS-StartupType=
+X-KDE-SubstituteUID=false
+X-KDE-Username=

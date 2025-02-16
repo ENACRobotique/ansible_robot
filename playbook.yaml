@@ -1,0 +1,225 @@
+- name: Setup rpi dev
+  hosts: rodevs
+  tasks:
+    - name: packages install
+      block:
+        - name: Install utilities
+          become: true
+          ansible.builtin.apt:
+            pkg:
+            - fd-find
+            - silversearcher-ag
+            - make
+            - git
+            - gitg
+            - cmake
+            - protobuf-compiler
+            - python3-serial
+            - python3-venv
+            - python3-protobuf
+
+        - name: Add eCAL repository
+          become: true
+          ansible.builtin.apt_repository:
+            repo: ppa:ecal/ecal-latest
+
+        - name: Install eCAL
+          become: true
+          ansible.builtin.apt:
+            pkg:
+            - ecal
+            - python3-ecal5
+
+        - name: additionnal configuration
+          block:
+            - name: eCAL enable network
+              become: true
+              community.general.ini_file:
+                path: /etc/ecal/ecal.ini
+                section: network
+                option: network_enabled
+                value: true
+
+
+    - name: Check VSCode
+      stat:
+        path: /usr/bin/code
+      register: vscode_data
+
+    - name: VSCode
+      when: not vscode_data.stat.exists
+      block:
+        - name: Add VSCode repository
+          become: true
+          ansible.builtin.script: scripts/vscode_apt.sh
+
+        - name: Install VSCode
+          become: true
+          ansible.builtin.apt:
+            update_cache: true
+            pkg:
+            - apt-transport-https
+            - code
+
+        - name: Install VSCode extensions
+          ansible.builtin.script: scripts/vscode_extensions.sh
+
+    - name: clone git repositories
+      block:
+        - name: Create "projets" directory
+          ansible.builtin.file:
+            path: /home/robot/projets
+            state: directory
+            owner: robot
+            group: robot
+            mode: '0755'
+
+        - name: Copy ssh private keys
+          ansible.builtin.copy:
+            src: files/id_rsa
+            dest: .ssh/id_rsa
+            owner: robot
+            group: robot
+            mode: '0600'
+            decrypt: true
+
+        - name: Copy ssh public keys
+          ansible.builtin.copy:
+            src: files/id_rsa.pub
+            dest: .ssh/id_rsa.pub
+            owner: robot
+            group: robot
+            mode: '0600'
+            decrypt: true
+
+        - name: Clone Rpi repository
+          ansible.builtin.git:
+            repo: git@github.com:ENACRobotique/rpi.git
+            dest: /home/robot/projets/rpi
+            accept_hostkey: true
+
+        - name: Clone base_roulante repository
+          ansible.builtin.git:
+            repo: git@github.com:ENACRobotique/base_roulante_2024.git
+            dest: /home/robot/projets/base_roulante
+            accept_hostkey: true
+
+        - name: Clone radarQt repository
+          ansible.builtin.git:
+            repo: git@github.com:ENACRobotique/radarQt.git
+            dest: /home/robot/projets/base_roulante
+            accept_hostkey: true
+
+
+
+
+
+    - name: Check Logic
+      stat:
+        path: /home/robot/.local/share/applications/logic.desktop
+      register: logic_data
+
+    - name: Logic
+      when: not logic_data.stat.exists
+      block:
+        - name: Create directory for appimages
+          ansible.builtin.file:
+            path: /home/robot/bin/icons
+            state: directory
+            mode: '0755'
+
+        - name: Create directory for desktop integration
+          ansible.builtin.file:
+            path: /home/robot/.local/share/applications
+            state: directory
+            mode: '0755'
+
+        - name: Download Logic
+          ansible.builtin.get_url:
+            url: https://logic2api.saleae.com/download?os=linux&arch=x64
+            dest: /home/robot/bin/Logic.AppImage
+            timeout: 60
+            owner: robot
+            group: robot
+            mode: '0755'
+
+        - name: Copy Logic launcher
+          ansible.builtin.copy:
+            src: files/logic.desktop
+            dest: /home/robot/.local/share/applications/logic.desktop
+            owner: robot
+            group: robot
+            mode: '0755'
+
+        - name: Copy Logic icon
+          ansible.builtin.copy:
+            src: files/logic.png
+            dest: /home/robot/bin/icons/logic.png
+            owner: robot
+            group: robot
+            mode: '0644'
+
+
+
+
+    - name: Check ARM toolchain
+      stat:
+        path: /opt/arm-gnu-toolchain-14.2
+      register: arm_data
+
+    - name: ARM toolchain
+      when: not arm_data.stat.exists
+      block:
+        - name: Download ARM toolchain
+          ansible.builtin.get_url:
+            url: https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz
+            dest: /tmp/arm_toolchain.tar.xz
+            timeout: 500
+            owner: robot
+            group: robot
+            mode: '0755'
+
+        - name: Extract ARM toolchain
+          become: true
+          ansible.builtin.unarchive:
+            src: /tmp/arm_toolchain.tar.xz
+            dest: /opt/
+            remote_src: yes
+            owner: robot
+            group: robot
+            mode: '0755'
+
+        - name: Rename ARM toolchain dir
+          become: true
+          ansible.builtin.shell:
+            cmd: mv /opt/arm-gnu-toolchain-14.2* /opt/arm-gnu-toolchain-14.2
+
+        - name: Add ARM toolchain to PATH
+          ansible.builtin.shell:
+            cmd: echo 'export PATH="/opt/arm-gnu-toolchain-14.2/bin:$PATH"' >> /home/robot/.bashrc
+
+    - name: KiCAD
+      block:
+        - name: Add KiCAD repository
+          become: true
+          ansible.builtin.apt_repository:
+            repo: ppa:kicad/kicad-8.0-releases
+
+        - name: Install KiCAD
+          become: true
+          ansible.builtin.apt:
+            pkg:
+            - kicad
+
+        - name: Create elec directory
+          ansible.builtin.file:
+            path: /home/robot/projets/elec
+            state: directory
+            mode: '0755'
+
+        - name: Clone KiCAD libs
+          ansible.builtin.git:
+            repo: git@github.com:ENACRobotique/kicad_libs_ENAC.git
+            dest: /home/robot/projets/kicad_libs_ENAC
+            accept_hostkey: true
+
